@@ -1,0 +1,149 @@
+---
+title: "Test of chi-square type I error rates through simulation"
+author: "John Willoughby"
+date: "`r Sys.Date()`"
+output: html_document
+knit: (function(input, encoding) {
+  rmarkdown::render(input,
+                    output_dir = "output",
+                    knit_root_dir = rprojroot::find_rstudio_root_file())})
+bibliography: references.bib
+---
+
+This paper examines how well the chi-square test approximates the desired Type I error (alpha) specified for the test through simulations. The results for equal and unequal sample sizes are examined, as well as for varying levels of probability.
+
+In each of the situations examined, both samples come from the same population, so any p values less than the specified alpha value represent type I errors (often called false-change errors in a monitoring context). The probability specified for the population is the probability of success. In a plant/vegetation monitoring context, this can represent the actual proportion of quadrats containing a species or other attribute of interest or the proportion of point intercepts that intercept a species or attribute of interest.
+
+Bradley [-@bradleyRobustness1978] provided a quantified measure of robustness. His criterion for a "negligible" departure of the realized type I error rate from the desired alpha is that it should fall within the interval 0.9\*alpha to 1.1\*alpha, meaning that for a desired alpha of 0.05, the realized type I error rate should be inside the interval 0.045 to 0.055. For a desired alpha of 0.10, the realized type I error rate should be inside the interval 0.09 to 0.11. His "liberal" criterion for robustness specifies that the realized Type 1 error rate should fall within the interval 0.5\*alpha to 1.5\*alpha. So if the specified alpha is 0.05, then the realized Type 1 error rate should be inside the interval 0.025 to 0.075. If the specified alpha is 0.10, then the realized Type I error rate should fall within the interval 0.05 to 0.15. We will look only at alpha = 0.05 here, but you can change the alpha level in the code below to examine what would happen with different alpha values.
+
+ 
+Load needed packages:
+
+```{r message = FALSE}
+library(tidyverse) # Loads ggplot, dplyr, and several other packages.
+library(flextable) # To make table
+
+```
+
+Let's examine 35 different several sampling scenarios. In each of these scenarios we'll set the probability of each of the two samples to be the same, so we're essentially assuming that the two samples come from the same population, which means we're examining the null distribution for a population corresponding to the specified frequency. This means that when we run a chi-square test on these samples, and set the alpha level to 0.05, just by chance about 5% of the p values will fall below 0.05. These are therefore type I errors.
+
+We'll set the number of simulations to 5000 for each comparison, but this number can be changed in the code below.
+
+Note that I am not setting a random number seed for these simulations, so if you run the simulations you will get somewhat different results.
+
+The following combinations of probability, n1 size, and n2 size are run:
+
+|  p   |  n1  |  n2  |
+|:----:|:----:|:----:|
+| 0.01 |  50  |  50  |
+| 0.01 |  50  | 100  |
+| 0.01 | 100  | 100  |
+| 0.01 | 100  | 200  |
+| 0.01 | 200  | 200  |
+| 0.01 | 500  | 500  |
+| 0.01 | 1000 | 1000 |
+| 0.05 |  50  |  50  |
+| 0.05 |  50  | 100  |
+| 0.05 | 100  | 100  |
+| 0.05 | 100  | 200  |
+| 0.05 | 200  | 200  |
+| 0.05 | 500  | 500  |
+| 0.05 | 1000 | 1000 |
+| 0.10 |  50  |  50  |
+| 0.10 |  50  | 100  |
+| 0.10 | 100  | 100  |
+| 0.10 | 100  | 200  |
+| 0.10 | 200  | 200  |
+| 0.10 | 500  | 500  |
+| 0.10 | 1000 | 1000 |
+| 0.20 |  50  |  50  |
+| 0.20 |  50  | 100  |
+| 0.20 | 100  | 100  |
+| 0.20 | 100  | 200  |
+| 0.20 | 200  | 200  |
+| 0.20 | 500  | 500  |
+| 0.20 | 1000 | 1000 |
+| 0.50 |  50  |  50  |
+| 0.50 |  50  | 100  |
+| 0.50 | 100  | 100  |
+| 0.50 | 100  | 200  |
+| 0.50 | 200  | 200  |
+| 0.50 | 400  | 400  |
+| 0.50 | 1000 | 1000 |
+
+Set the number of simulations to run.
+
+```{r}
+nreps = 5000
+```
+
+Set the alpha level
+
+```{r}
+alpha.p = 0.05
+```
+
+Create a data frame with combinations of probabilities and sample sizes for the two samples, n1 and n2. Add column p.chi and fill with NA. The p values for these columns will be filled in by the for loop below.
+
+```{r}
+combos = data.frame(p = rep(c(0.01, 0.05, 0.1, 0.2, 0.5), 
+                            each = 7),
+                    n1 = rep(c(50, 50, 100, 100, 200, 500, 1000), 
+                            times = 5),
+                    n2 = rep(c(50, 100, 100, 200, 200, 500, 1000), 
+                            times = 5),
+                    type.1.err.no.correct = rep(NA, times = 7*5),
+                    type.1.err.correct = rep(NA, times = 7*5))
+                  
+```
+
+The for loop below takes the probability and sample sizes in each row of the combos data frame created above, draws two random binomial samples, performs a chi-square test on each pair of samples and records the p value for the test. It does this the number of times specified in nreps above, and returns the mean proportion of times the p values fell below the alpha level specified (0.05 as entered above). This is the empirical type I error rate for each of the 30 sampling scenarios.
+
+Note that warnings are turned off in the code creating this data frame. With small sample sizes and small frequencies (probabilities), R returns the following warning for many of the tests:
+
+"In chisq.test(cbind(table(samp1), table(samp2)), correct = correct) : Chi-squared approximation may be incorrect"
+
+This is because when at least one of the cells in the contingency table used for the chi-square test is "sparse", meaning that it has fewer than 5 observations, R returns a warning that the test may be unreliable.
+
+```{r warning = FALSE}
+for(i in 1:nrow(combos)) {
+type.1.err.no.correct = mean(replicate(nreps, chisq.test(cbind(table(rbinom(combos$n1[i], 1,                        prob = combos$p[i])), table(rbinom(combos$n2[i], 1,
+             prob = combos$p[i]))), correct = FALSE)$p.value) < 0.05)
+
+type.1.err.correct = mean(replicate(nreps, chisq.test(cbind(table(rbinom(combos$n1[i], 1,                        prob = combos$p[i])), table(rbinom(combos$n2[i], 1,
+             prob = combos$p[i]))), correct = TRUE)$p.value) < 0.05)
+  combos[i, 4] = type.1.err.no.correct
+  combos[i, 5] = type.1.err.correct
+}
+
+
+```
+
+Put the results in a table.
+
+```{r}
+
+ft = flextable(combos)
+
+ft = set_caption(ft,
+                 caption = paste0("Empirical type I error rates from ", nreps, " simulations of chi-square tests on binomial samples with varying probabilities and sample sizes and a target alpha value of 0.05, with and without the Yates' correction for continuity. ")) |> 
+  set_header_labels(ft, p = "Probability", type.1.err.no.correct = "Type I error without correction", type.1.err.correct = "Type I error with correction")
+ft                                  
+
+```
+
+For the test to be considered robust by Bradley's liberal criterion, the empirical type I error for an alpha of 0.05 should be between 0.025 and 0.075 and would hopefully be closer to 0.05 than even that interval. For a binomial probability of 0.01, observed type I error rates are not even close to 0.05 until the sample size reaches 500, in which case the uncorrected type I error is close to 0.05.
+
+When the probability is increased to 0.05, robustness is not achieved until the sample size is 100 for both samples and the uncorrected type I error becomes close to 0.05. For probabilities of 0.10 and above, the uncorrected type I error rate is close to 0.05 and therefore robust.
+
+Observed type I errors from the chi-square test with the Yates' correction are quite a bit smaller than 0.05 for most of those scenarios in which the uncorrected type I errors are close to 0.05. This is further evidence against using the Yates' correction. Because actual type I errors with Yates' correction are substantially lower than the desired alpha level, power to detect the desired level of change will be lower than necessary.
+
+Note that we only examined probabilities between 0.01 and 0.50 in this analysis. That's because the situation for probabilities between 0.50 and 0.99 will exactly mirror the situation observed for 0.01 - 0.50 probabilities. That is, the type I errors for a probability of 0.99 will not stabilize toward 0.05 until the sample size approaches 500 and the type I errors for a probability of 0.95 will stabilize near 0.05 only after the sample size is 100 for both samples.
+
+There are two major uses of the chi-square test in plant monitoring situations. One is in the analysis of plant frequency data, where a sample of quadrats of a certain size are randomly placed within a population and the proportion of quadrats containing a target plant species is recorded. Because the quadrat size is within the control of the investigator, a size can be selected that ensures the frequency (binomial probability) is greater than 0.10 and less than 0.90. A good practice is to use a nested frequency design where 2 or 3 smaller quadrat sizes are nested within a large quadrat. That way the observer will have frequency data for each quadrat size in each year of monitoring. If the plant species increases or decreases to the point that the frequency in one nested quadrat becomes too low or too high, the analysis can switch to the next largest or next smallest quadrat. Thus, we can be assured that the type I error will remain close to the target alpha, whether this is 0.05, as used in this analysis, or 0.10, as we often recommend in plant monitoring situations.
+
+The second major use of the chi-square test in plant monitoring is to analyze point-intercept data, where the points are treated as the sampling units. In this case the point has (at least theoretically) no area associated with it, and the observer therefore has no control over the binomial probability; that probability translates into an estimate of the cover of the target species. If the target species has very low cover then the binomial probability may be as low as 0.01, and we are faced with the problems shown in the table. When that's the case we can see we need at least 500 point intercepts in each sample to achieve the target alpha level. Although it may not be too onerous to measure 500 points, this solves only the problem of poor type I error estimation. We also have to consider type II error, which leads us to considerations of statistical power and sample size. Let's say our estimate of cover is 0.01 and we want to detect a 100% increase in cover, meaning we want to detect a change of 0.01 (i.e., a change from 0.01 to 0.02). Detecting a change of this magnitude with alpha = 0.1 and a power of 0.9 would take 2459 points in each sample! If we truly were only interested in detecting an *increase* and didn't care about a decrease (unlikely), we could run a one-tailed test, in which case we would *only* need 1887 points in each sample.
+
+Although we could increase the magnitude of change we want to detect, in which case the needed sample size would decrease, it may not be biologically feasible to increase cover more than 100%, particularly in time frames relevant to management. Thus, when cover values are very low, this may mean we need to choose another attribute to monitor.
+
+### Literature Cited
