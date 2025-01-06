@@ -10,13 +10,12 @@ knit: (function(input, encoding) {
 bibliography: references.bib
 ---
 
-This paper examines how well the chi-square test approximates the desired Type I error (alpha) specified for the test through simulations. The results for equal and unequal sample sizes are examined, as well as for varying levels of probability.
+This paper examines how well the chi-square test on a 2x2 contingency table approximates the desired Type I error (alpha) specified for the test through simulations. The results for equal and unequal sample sizes are examined, as well as for varying levels of probability. The use of the Yates' correction for continuity is also explored. Yates' correction for continuity is often employed in the case of 2x2 contingency tables, and R's chisq.test() function applies the correction by default to a 2x2 table. But many authors have pointed out that the correction is too conservative; see, for example, @amiriComparisonTestsContingency2017.
 
 In each of the situations examined, both samples come from the same population, so any p values less than the specified alpha value represent type I errors (often called false-change errors in a monitoring context). The probability specified for the population is the probability of success. In a plant/vegetation monitoring context, this can represent the actual proportion of quadrats containing a species or other attribute of interest or the proportion of point intercepts that intercept a species or attribute of interest.
 
 Bradley [-@bradleyRobustness1978] provided a quantified measure of robustness. His criterion for a "negligible" departure of the realized type I error rate from the desired alpha is that it should fall within the interval 0.9\*alpha to 1.1\*alpha, meaning that for a desired alpha of 0.05, the realized type I error rate should be inside the interval 0.045 to 0.055. For a desired alpha of 0.10, the realized type I error rate should be inside the interval 0.09 to 0.11. His "liberal" criterion for robustness specifies that the realized Type 1 error rate should fall within the interval 0.5\*alpha to 1.5\*alpha. So if the specified alpha is 0.05, then the realized Type 1 error rate should be inside the interval 0.025 to 0.075. If the specified alpha is 0.10, then the realized Type I error rate should fall within the interval 0.05 to 0.15. We will look only at alpha = 0.05 here, but you can change the alpha level in the code below to examine what would happen with different alpha values.
 
- 
 Load needed packages:
 
 ```{r message = FALSE}
