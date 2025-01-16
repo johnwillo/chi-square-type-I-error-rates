@@ -82,7 +82,7 @@ Set the alpha level
 alpha.p = 0.05
 ```
 
-Create a data frame with combinations of probabilities and sample sizes for the two samples, n1 and n2. Add column p.chi and fill with NA. The p values for these columns will be filled in by the for loop below.
+Create a data frame with combinations of probabilities and sample sizes for the two samples, n1 and n2. Add column p.chi and fill with NA. The p values for these columns will be filled in by pmap_dbl() function run below.
 
 ```{r}
 combos = data.frame(p = rep(c(0.01, 0.05, 0.1, 0.2, 0.5), 
@@ -96,7 +96,10 @@ combos = data.frame(p = rep(c(0.01, 0.05, 0.1, 0.2, 0.5),
                   
 ```
 
-The for loop below takes the probability and sample sizes in each row of the combos data frame created above, draws two random binomial samples, performs a chi-square test on each pair of samples and records the p value for the test. It does this the number of times specified in nreps above, and returns the mean proportion of times the p values fell below the alpha level specified (0.05 as entered above). This is the empirical type I error rate for each of the 30 sampling scenarios.
+The pmap_dbl() function (from the purrr package) takes the sample sizes (n1 and n2) and probability (p) in each row of the combos data frame created above, draws two random samples from the same populations, performs a chi-square test on each pair of samples and records the p value for the test. For each pair of sample sizes and probability, it conducts nreps numbers of chi-square tests and returns the mean proportion of times the p values fell below the alpha level specified (0.05 as entered above). This is the empirical type I error rate for each of the 24 sampling scenarios. Chi-square test are run with and without the Yates' correction for continuity.
+
+In order to apply pmap_dbl() to our data we must first create a list of the three
+variables (n1, n2, and p) of the combos dataframe and assign it to the argument, .l. We then create an anonymous function and apply the function that will calculate the mean p values for the number of replications. We then save these mean p values into the appropriate variables of combos (either type.1.err.no.correct or type.1.err.correct).
 
 Note that warnings are turned off in the code creating this data frame. With small sample sizes and small frequencies (probabilities), R returns the following warning for many of the tests:
 
@@ -105,15 +108,20 @@ Note that warnings are turned off in the code creating this data frame. With sma
 This is because when at least one of the cells in the contingency table used for the chi-square test is "sparse", meaning that it has fewer than 5 observations, R returns a warning that the test may be unreliable.
 
 ```{r warning = FALSE}
-for(i in 1:nrow(combos)) {
-type.1.err.no.correct = mean(replicate(nreps, chisq.test(cbind(table(rbinom(combos$n1[i], 1,                        prob = combos$p[i])), table(rbinom(combos$n2[i], 1,
-             prob = combos$p[i]))), correct = FALSE)$p.value) < 0.05)
 
-type.1.err.correct = mean(replicate(nreps, chisq.test(cbind(table(rbinom(combos$n1[i], 1,                        prob = combos$p[i])), table(rbinom(combos$n2[i], 1,
-             prob = combos$p[i]))), correct = TRUE)$p.value) < 0.05)
-  combos[i, 4] = type.1.err.no.correct
-  combos[i, 5] = type.1.err.correct
-}
+combos$type.1.err.no.correct = pmap_dbl(
+    .l = list(combos$n1, 
+              combos$n2,
+              combos$p),
+    \(n1, n2, p) mean(replicate(nreps, chisq.test(cbind(table(rbinom(n1, 1, prob = p)), table(rbinom(n2, 1, prob = p))), correct = FALSE)$p.value) < 0.05)
+)
+
+combos$type.1.err.correct = pmap_dbl(
+    .l = list(combos$n1, 
+              combos$n2,
+              combos$p),
+    \(n1, n2, p) mean(replicate(nreps, chisq.test(cbind(table(rbinom(n1, 1, prob = p)), table(rbinom(n2, 1, prob = p))), correct = TRUE)$p.value) < 0.05)
+)
 
 
 ```
